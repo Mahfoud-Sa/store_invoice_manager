@@ -29,6 +29,12 @@ class AppLocalizations {
   String get storeName => _t('storeName');
   String get storeDescription => _t('storeDescription');
   String get storeLogo => _t('storeLogo');
+  String get storeAddress => _t('storeAddress');
+  String get phoneNumbers => _t('phoneNumbers');
+  String get addPhone => _t('addPhone');
+  String get editPhone => _t('editPhone');
+  String get phoneNumber => _t('phoneNumber');
+  String get noPhones => _t('noPhones');
   String get pickImage => _t('pickImage');
   String get removeImage => _t('removeImage');
   String get save => _t('save');
@@ -74,6 +80,12 @@ class AppLocalizations {
     'storeName': 'Store name',
     'storeDescription': 'Description',
     'storeLogo': 'Logo',
+    'storeAddress': 'Address',
+    'phoneNumbers': 'Phone numbers',
+    'addPhone': 'Add phone',
+    'editPhone': 'Edit phone',
+    'phoneNumber': 'Phone number',
+    'noPhones': 'No phone numbers yet',
     'pickImage': 'Pick image',
     'removeImage': 'Remove image',
     'save': 'Save',
@@ -113,6 +125,12 @@ class AppLocalizations {
     'storeName': 'اسم المتجر',
     'storeDescription': 'الوصف',
     'storeLogo': 'الشعار',
+    'storeAddress': 'العنوان',
+    'phoneNumbers': 'أرقام الهاتف',
+    'addPhone': 'إضافة رقم',
+    'editPhone': 'تعديل الرقم',
+    'phoneNumber': 'رقم الهاتف',
+    'noPhones': 'لا توجد أرقام هاتف بعد',
     'pickImage': 'اختيار صورة',
     'removeImage': 'إزالة الصورة',
     'save': 'حفظ',

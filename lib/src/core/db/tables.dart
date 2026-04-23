@@ -9,6 +9,6 @@ class DbTables {
 }
 
 class DbSchema {
-  static const version = 1;
+  static const version = 2;
 }
 

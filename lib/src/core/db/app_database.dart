@@ -46,7 +46,13 @@ class AppDatabase {
           await _createV1(db);
         },
         onUpgrade: (db, oldVersion, newVersion) async {
-          // Future migrations go here.
+          // Migrations (incremental).
+          if (oldVersion < 2) {
+            // Add store address.
+            await db.execute(
+              "ALTER TABLE ${DbTables.store} ADD COLUMN address TEXT NOT NULL DEFAULT ''",
+            );
+          }
         },
       );
     } catch (e, st) {
@@ -61,6 +67,7 @@ CREATE TABLE ${DbTables.store} (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   name TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
   logo_path TEXT
 )
 ''');
@@ -125,6 +132,7 @@ CREATE TABLE ${DbTables.invoiceItems} (
       'id': 1,
       'name': 'My Store',
       'description': 'Welcome! Update your store settings.',
+      'address': '',
       'logo_path': null,
     });
   }
