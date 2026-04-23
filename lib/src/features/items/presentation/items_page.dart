@@ -18,7 +18,14 @@ class _ItemsPageState extends ConsumerState<ItemsPage> {
   String _formatMoney(BuildContext context, int cents) {
     final locale = Localizations.localeOf(context).toLanguageTag();
     final amount = cents / 100.0;
-    return NumberFormat.simpleCurrency(locale: locale).format(amount);
+    final formatted = NumberFormat.currency(
+      locale: locale,
+      symbol: 'ر.ي',
+      decimalDigits: 0,
+    ).format(amount);
+    final isArabic = locale.startsWith('ar');
+    // Show both English and Arabic currency names for Yemeni Rial
+    return isArabic ? '$formatted ($amount YER)' : '$formatted';
   }
 
   Future<void> _openUpsertDialog({Item? item}) async {
@@ -46,7 +53,8 @@ class _ItemsPageState extends ConsumerState<ItemsPage> {
                     border: const OutlineInputBorder(),
                   ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return l10n.requiredField;
+                    if (v == null || v.trim().isEmpty)
+                      return l10n.requiredField;
                     return null;
                   },
                   textInputAction: TextInputAction.next,
@@ -59,10 +67,12 @@ class _ItemsPageState extends ConsumerState<ItemsPage> {
                     border: const OutlineInputBorder(),
                     hintText: '0.00',
                   ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   validator: (v) {
-                    if (v == null || v.trim().isEmpty) return l10n.requiredField;
+                    if (v == null || v.trim().isEmpty)
+                      return l10n.requiredField;
                     final parsed = double.tryParse(v.replaceAll(',', '.'));
                     if (parsed == null || parsed < 0) return l10n.invalidNumber;
                     return null;
@@ -89,7 +99,9 @@ class _ItemsPageState extends ConsumerState<ItemsPage> {
     if (!formKey.currentState!.validate()) return;
 
     final name = nameController.text.trim();
-    final priceDouble = double.parse(priceController.text.trim().replaceAll(',', '.'));
+    final priceDouble = double.parse(
+      priceController.text.trim().replaceAll(',', '.'),
+    );
     final cents = (priceDouble * 100).round();
 
     final repo = ref.read(itemsRepositoryProvider);
@@ -132,9 +144,7 @@ class _ItemsPageState extends ConsumerState<ItemsPage> {
     final itemsAsync = ref.watch(itemsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(context.l10n.items),
-      ),
+      appBar: AppBar(title: Text(context.l10n.items)),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openUpsertDialog(),
         icon: const Icon(Icons.add),
@@ -159,19 +169,21 @@ class _ItemsPageState extends ConsumerState<ItemsPage> {
                 final filtered = _query.isEmpty
                     ? items
                     : items
-                        .where((i) => i.name.toLowerCase().contains(_query))
-                        .toList(growable: false);
+                          .where((i) => i.name.toLowerCase().contains(_query))
+                          .toList(growable: false);
                 if (filtered.isEmpty) {
                   return const Center(child: Text('No items'));
                 }
                 return ListView.separated(
                   itemCount: filtered.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) =>
+                      const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final item = filtered[index];
                     return ListTile(
                       title: Text(item.name),
                       subtitle: Text(_formatMoney(context, item.priceCents)),
+
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -200,4 +212,3 @@ class _ItemsPageState extends ConsumerState<ItemsPage> {
     );
   }
 }
-
