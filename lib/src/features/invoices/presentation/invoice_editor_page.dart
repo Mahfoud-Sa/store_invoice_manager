@@ -8,7 +8,9 @@ import '../data/invoices_repository.dart';
 import 'invoice_details_page.dart';
 
 class InvoiceEditorPage extends ConsumerStatefulWidget {
-  const InvoiceEditorPage({super.key});
+  const InvoiceEditorPage({super.key, this.invoiceId});
+
+  final int? invoiceId;
 
   @override
   ConsumerState<InvoiceEditorPage> createState() => _InvoiceEditorPageState();
@@ -22,6 +24,7 @@ class _InvoiceEditorPageState extends ConsumerState<InvoiceEditorPage> {
   String _query = '';
   final Map<int, int> _qtyByItemId = {}; // itemId -> quantity
   bool _saving = false;
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -33,7 +36,11 @@ class _InvoiceEditorPageState extends ConsumerState<InvoiceEditorPage> {
   String _formatMoney(BuildContext context, int cents) {
     final locale = Localizations.localeOf(context).toLanguageTag();
     final amount = cents / 100.0;
-    return NumberFormat.simpleCurrency(locale: locale).format(amount);
+    return NumberFormat.currency(
+      locale: locale,
+      symbol: 'ر.ي',
+      decimalDigits: 0,
+    ).format(amount);
   }
 
   int _totalCents(List<Item> items) {
@@ -43,49 +50,6 @@ class _InvoiceEditorPageState extends ConsumerState<InvoiceEditorPage> {
       total += q * item.priceCents;
     }
     return total;
-  }
-
-  Future<void> _save(List<Item> items) async {
-    if (!_formKey.currentState!.validate()) return;
-
-    final selected = <NewInvoiceLine>[];
-    for (final item in items) {
-      final q = _qtyByItemId[item.id] ?? 0;
-      if (q <= 0) continue;
-      selected.add(
-        NewInvoiceLine(
-          itemId: item.id,
-          itemName: item.name,
-          quantity: q,
-          priceCents: item.priceCents,
-        ),
-      );
-    }
-
-    if (selected.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.l10n.addItems)),
-      );
-      return;
-    }
-
-    setState(() => _saving = true);
-    try {
-      final repo = ref.read(invoicesRepositoryProvider);
-      final invoiceId = await repo.createInvoice(
-        name: _nameController.text.trim(),
-        description: _descriptionController.text.trim(),
-        lines: selected,
-      );
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => InvoiceDetailsPage(invoiceId: invoiceId),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
   }
 
   void _setQty(int itemId, int qty) {
@@ -104,9 +68,11 @@ class _InvoiceEditorPageState extends ConsumerState<InvoiceEditorPage> {
     final itemsAsync = ref.watch(itemsProvider);
     final l10n = context.l10n;
 
+    final isEditing = widget.invoiceId != null;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.addInvoice),
+        title: Text(isEditing ? 'Edit Invoice' : l10n.addInvoice),
         actions: [
           IconButton(
             onPressed: _saving
@@ -131,10 +97,11 @@ class _InvoiceEditorPageState extends ConsumerState<InvoiceEditorPage> {
           final filtered = _query.isEmpty
               ? items
               : items
-                  .where(
-                    (i) => i.name.toLowerCase().contains(_query.toLowerCase()),
-                  )
-                  .toList(growable: false);
+                    .where(
+                      (i) =>
+                          i.name.toLowerCase().contains(_query.toLowerCase()),
+                    )
+                    .toList(growable: false);
 
           final total = _totalCents(items);
 
@@ -152,7 +119,8 @@ class _InvoiceEditorPageState extends ConsumerState<InvoiceEditorPage> {
                         border: const OutlineInputBorder(),
                       ),
                       validator: (v) {
-                        if (v == null || v.trim().isEmpty) return l10n.requiredField;
+                        if (v == null || v.trim().isEmpty)
+                          return l10n.requiredField;
                         return null;
                       },
                       textInputAction: TextInputAction.next,
@@ -206,10 +174,7 @@ class _InvoiceEditorPageState extends ConsumerState<InvoiceEditorPage> {
                           ),
                           SizedBox(
                             width: 28,
-                            child: Text(
-                              '$qty',
-                              textAlign: TextAlign.center,
-                            ),
+                            child: Text('$qty', textAlign: TextAlign.center),
                           ),
                           IconButton(
                             onPressed: () => _setQty(item.id, qty + 1),
@@ -250,5 +215,88 @@ class _InvoiceEditorPageState extends ConsumerState<InvoiceEditorPage> {
       ),
     );
   }
-}
 
+  @override
+  void initState() {
+    super.initState();
+    if (widget.invoiceId != null) {
+      _loadInvoice(widget.invoiceId!);
+    }
+  }
+
+  Future<void> _loadInvoice(int invoiceId) async {
+    setState(() => _loading = true);
+    try {
+      final repo = ref.read(invoicesRepositoryProvider);
+      final details = await repo.getInvoiceDetails(invoiceId);
+      _nameController.text = details.invoice.name;
+      _descriptionController.text = details.invoice.description;
+      // map quantities by item id where available
+      for (final l in details.lines) {
+        if (l.itemId != null) {
+          _qtyByItemId[l.itemId!] = l.quantity;
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _save(List<Item> items) async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final selected = <NewInvoiceLine>[];
+    for (final item in items) {
+      final q = _qtyByItemId[item.id] ?? 0;
+      if (q <= 0) continue;
+      selected.add(
+        NewInvoiceLine(
+          itemId: item.id,
+          itemName: item.name,
+          quantity: q,
+          priceCents: item.priceCents,
+        ),
+      );
+    }
+
+    if (selected.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(context.l10n.addItems)));
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final repo = ref.read(invoicesRepositoryProvider);
+      if (widget.invoiceId == null) {
+        final invoiceId = await repo.createInvoice(
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          lines: selected,
+        );
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => InvoiceDetailsPage(invoiceId: invoiceId),
+          ),
+        );
+      } else {
+        await repo.updateInvoice(
+          invoiceId: widget.invoiceId!,
+          name: _nameController.text.trim(),
+          description: _descriptionController.text.trim(),
+          lines: selected,
+        );
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => InvoiceDetailsPage(invoiceId: widget.invoiceId!),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+}

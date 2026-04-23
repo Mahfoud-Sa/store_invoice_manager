@@ -18,6 +18,7 @@ class InvoicePdfService {
   ) async {
     final l10n = context.l10n;
     final localeTag = Localizations.localeOf(context).toLanguageTag();
+    final isArabicLocale = localeTag.toLowerCase().startsWith('ar');
 
     final fontData = await rootBundle.load(
       'assets/fonts/NotoNaskhArabic-Regular.ttf',
@@ -26,35 +27,54 @@ class InvoicePdfService {
 
     final doc = pw.Document();
     final inv = details.invoice;
+
     final dateFmt = DateFormat.yMMMd(localeTag).add_jm();
     final createdAt = DateTime.fromMillisecondsSinceEpoch(inv.createdAtMs);
 
+    // ✅ FIXED currency
     String money(int cents) {
       final amount = cents / 100.0;
+
+      if (isArabicLocale) {
+        return NumberFormat.currency(
+          locale: 'ar',
+          symbol: 'ر.ي',
+          decimalDigits: 0,
+        ).format(amount);
+      }
+
       return NumberFormat.simpleCurrency(locale: localeTag).format(amount);
     }
 
-    final isArabicLocale = localeTag.toLowerCase().startsWith('ar');
-
+    // ✅ FIXED text builder
     pw.Widget txt(
       String s, {
       pw.TextStyle? style,
       pw.TextAlign? align,
-      bool rtlIfArabic = true,
+      bool forceLtr = false,
     }) {
-      final shaped = rtlIfArabic ? shapeForPdf(s) : s;
-      final isAr = containsArabic(s);
-      final base = pw.Text(shaped, style: style, textAlign: align);
-      if (!isAr) return base;
+      final shaped = shapeForPdf(s);
+
+      final widget = pw.Text(
+        shaped,
+        style: style,
+        textAlign:
+            align ?? (isArabicLocale ? pw.TextAlign.right : pw.TextAlign.left),
+      );
+
       return pw.Directionality(
-        textDirection: pw.TextDirection.rtl,
-        child: base,
+        textDirection: forceLtr
+            ? pw.TextDirection.ltr
+            : (isArabicLocale ? pw.TextDirection.rtl : pw.TextDirection.ltr),
+        child: widget,
       );
     }
 
+    // ================= HEADER =================
     pw.Widget header() {
       final logoPath = inv.storeLogoPath;
       final hasLogo = logoPath != null && File(logoPath).existsSync();
+
       final logo = hasLogo
           ? pw.ClipRRect(
               horizontalRadius: 8,
@@ -114,251 +134,173 @@ class InvoicePdfService {
             ),
           ),
           pw.SizedBox(height: 4),
-          pw.Text(
+          txt(
             dateFmt.format(createdAt),
             style: pw.TextStyle(
               font: ttf,
               fontSize: 10,
               color: PdfColors.grey700,
             ),
+            forceLtr: true,
+            align: pw.TextAlign.right,
           ),
         ],
       );
 
-      final children = [
-        logo,
-        pw.SizedBox(width: 12),
-        leftBlock,
-        pw.SizedBox(width: 12),
-        rightBlock,
-      ];
-      final rowChildren = isArabicLocale
-          ? children.reversed.toList()
-          : children;
-
       return pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: rowChildren,
+        children: isArabicLocale
+            ? [
+                rightBlock,
+                pw.SizedBox(width: 12),
+                leftBlock,
+                pw.SizedBox(width: 12),
+                logo,
+              ]
+            : [
+                logo,
+                pw.SizedBox(width: 12),
+                leftBlock,
+                pw.SizedBox(width: 12),
+                rightBlock,
+              ],
       );
     }
 
+    // ================= TABLE =================
     pw.Widget linesTable() {
       final rows = <pw.TableRow>[];
-
-      // Header order: LTR -> Items | Quantity | Total, RTL -> Total | Quantity | Items
-      final headerCells = isArabicLocale
-          ? [
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: txt(
-                  l10n.total,
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                  align: pw.TextAlign.right,
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: txt(
-                  l10n.quantity,
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                  align: pw.TextAlign.right,
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: txt(
-                  l10n.items,
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-            ]
-          : [
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: txt(
-                  l10n.items,
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: txt(
-                  l10n.quantity,
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                  align: pw.TextAlign.right,
-                ),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: txt(
-                  l10n.total,
-                  style: pw.TextStyle(
-                    font: ttf,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                  align: pw.TextAlign.right,
-                ),
-              ),
-            ];
 
       rows.add(
         pw.TableRow(
           decoration: const pw.BoxDecoration(color: PdfColors.grey200),
-          children: headerCells,
+          children: isArabicLocale
+              ? [
+                  txt(
+                    l10n.total,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  txt(
+                    l10n.quantity,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  txt(
+                    l10n.items,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ]
+              : [
+                  txt(
+                    l10n.items,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  txt(
+                    l10n.quantity,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  txt(
+                    l10n.total,
+                    style: pw.TextStyle(
+                      font: ttf,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
         ),
       );
 
       for (final l in details.lines) {
-        final dataCells = isArabicLocale
-            ? [
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(
-                    money(l.lineTotalCents),
-                    style: pw.TextStyle(font: ttf, fontSize: 11),
-                    textAlign: pw.TextAlign.right,
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(
-                    '${l.quantity}',
-                    style: pw.TextStyle(font: ttf, fontSize: 11),
-                    textAlign: pw.TextAlign.right,
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: txt(
-                    l.itemName,
-                    style: pw.TextStyle(font: ttf, fontSize: 11),
-                  ),
-                ),
-              ]
-            : [
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: txt(
-                    l.itemName,
-                    style: pw.TextStyle(font: ttf, fontSize: 11),
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(
-                    '${l.quantity}',
-                    style: pw.TextStyle(font: ttf, fontSize: 11),
-                    textAlign: pw.TextAlign.right,
-                  ),
-                ),
-                pw.Padding(
-                  padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(
-                    money(l.lineTotalCents),
-                    style: pw.TextStyle(font: ttf, fontSize: 11),
-                    textAlign: pw.TextAlign.right,
-                  ),
-                ),
-              ];
-
-        rows.add(pw.TableRow(children: dataCells));
+        rows.add(
+          pw.TableRow(
+            children: isArabicLocale
+                ? [
+                    txt(money(l.lineTotalCents), forceLtr: true),
+                    txt('${l.quantity}', forceLtr: true),
+                    txt(l.itemName),
+                  ]
+                : [
+                    txt(l.itemName),
+                    txt('${l.quantity}', forceLtr: true),
+                    txt(money(l.lineTotalCents), forceLtr: true),
+                  ],
+          ),
+        );
       }
 
       return pw.Table(
         border: pw.TableBorder.all(color: PdfColors.grey300),
-        columnWidths: {
-          0: const pw.FlexColumnWidth(5),
-          1: const pw.FlexColumnWidth(2),
-          2: const pw.FlexColumnWidth(3),
-        },
         children: rows,
       );
     }
 
+    // ================= CONTENT =================
+    final pageContent = [
+      header(),
+      pw.SizedBox(height: 16),
+
+      if (inv.description.trim().isNotEmpty)
+        txt(
+          '${l10n.invoiceDescription}: ${inv.description}',
+          style: pw.TextStyle(font: ttf, fontSize: 11),
+        ),
+
+      pw.SizedBox(height: 12),
+      linesTable(),
+      pw.SizedBox(height: 12),
+
+      pw.Align(
+        alignment: isArabicLocale
+            ? pw.Alignment.centerLeft
+            : pw.Alignment.centerRight,
+        child: pw.Container(
+          padding: const pw.EdgeInsets.all(12),
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.grey300),
+            borderRadius: pw.BorderRadius.circular(8),
+          ),
+          child: pw.Row(
+            mainAxisSize: pw.MainAxisSize.min,
+            children: isArabicLocale
+                ? [
+                    txt(money(details.totalCents), forceLtr: true),
+                    pw.SizedBox(width: 12),
+                    txt(l10n.total),
+                  ]
+                : [
+                    txt(l10n.total),
+                    pw.SizedBox(width: 12),
+                    txt(money(details.totalCents), forceLtr: true),
+                  ],
+          ),
+        ),
+      ),
+    ];
+
+    // ================= PAGE =================
     doc.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
         margin: const pw.EdgeInsets.all(24),
         build: (context) => [
-          header(),
-          pw.SizedBox(height: 16),
-          if (inv.description.trim().isNotEmpty) ...[
-            txt(
-              '${l10n.invoiceDescription}: ${inv.description}',
-              style: pw.TextStyle(font: ttf, fontSize: 11),
-            ),
-            pw.SizedBox(height: 12),
-          ],
-          linesTable(),
-          pw.SizedBox(height: 12),
-          pw.Align(
-            alignment: isArabicLocale
-                ? pw.Alignment.centerLeft
-                : pw.Alignment.centerRight,
-            child: pw.Container(
-              padding: const pw.EdgeInsets.all(12),
-              decoration: pw.BoxDecoration(
-                border: pw.Border.all(color: PdfColors.grey300),
-                borderRadius: pw.BorderRadius.circular(8),
-              ),
-              child: pw.Row(
-                mainAxisSize: pw.MainAxisSize.min,
-                children: isArabicLocale
-                    ? [
-                        pw.Text(
-                          money(details.totalCents),
-                          style: pw.TextStyle(
-                            font: ttf,
-                            fontSize: 12,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                        pw.SizedBox(width: 12),
-                        txt(
-                          l10n.total,
-                          style: pw.TextStyle(
-                            font: ttf,
-                            fontSize: 12,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                      ]
-                    : [
-                        txt(
-                          l10n.total,
-                          style: pw.TextStyle(
-                            font: ttf,
-                            fontSize: 12,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                        pw.SizedBox(width: 12),
-                        pw.Text(
-                          money(details.totalCents),
-                          style: pw.TextStyle(
-                            font: ttf,
-                            fontSize: 12,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                      ],
-              ),
-            ),
+          pw.Directionality(
+            textDirection: isArabicLocale
+                ? pw.TextDirection.rtl
+                : pw.TextDirection.ltr,
+            child: pw.Column(children: pageContent),
           ),
         ],
       ),

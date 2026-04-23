@@ -48,16 +48,12 @@ class InvoiceLine {
 }
 
 class InvoiceDetails {
-  const InvoiceDetails({
-    required this.invoice,
-    required this.lines,
-  });
+  const InvoiceDetails({required this.invoice, required this.lines});
 
   final Invoice invoice;
   final List<InvoiceLine> lines;
 
-  int get totalCents =>
-      lines.fold<int>(0, (sum, l) => sum + l.lineTotalCents);
+  int get totalCents => lines.fold<int>(0, (sum, l) => sum + l.lineTotalCents);
 }
 
 final invoicesRepositoryProvider = Provider<InvoicesRepository>((ref) {
@@ -69,8 +65,10 @@ final invoicesProvider = FutureProvider<List<Invoice>>((ref) async {
   return repo.listInvoices();
 });
 
-final invoiceDetailsProvider =
-    FutureProvider.family<InvoiceDetails, int>((ref, invoiceId) async {
+final invoiceDetailsProvider = FutureProvider.family<InvoiceDetails, int>((
+  ref,
+  invoiceId,
+) async {
   final repo = ref.watch(invoicesRepositoryProvider);
   return repo.getInvoiceDetails(invoiceId);
 });
@@ -96,8 +94,7 @@ class InvoicesRepository {
       where: 'id = ?',
       whereArgs: [invoiceId],
       limit: 1,
-    ))
-        .single;
+    )).single;
 
     final lineRows = await db.query(
       DbTables.invoiceItems,
@@ -124,8 +121,7 @@ class InvoicesRepository {
         where: 'id = ?',
         whereArgs: [1],
         limit: 1,
-      ))
-          .single;
+      )).single;
       final phones = await txn.query(
         DbTables.storePhones,
         where: 'store_id = ?',
@@ -154,6 +150,56 @@ class InvoicesRepository {
       }
 
       return invoiceId;
+    });
+  }
+
+  Future<void> updateInvoice({
+    required int invoiceId,
+    required String name,
+    required String description,
+    required List<NewInvoiceLine> lines,
+  }) async {
+    final db = await _db.database;
+    await db.transaction((txn) async {
+      await txn.update(
+        DbTables.invoices,
+        {'name': name, 'description': description},
+        where: 'id = ?',
+        whereArgs: [invoiceId],
+      );
+
+      // Remove existing lines and re-insert
+      await txn.delete(
+        DbTables.invoiceItems,
+        where: 'invoice_id = ?',
+        whereArgs: [invoiceId],
+      );
+
+      for (final l in lines) {
+        await txn.insert(DbTables.invoiceItems, {
+          'invoice_id': invoiceId,
+          'item_id': l.itemId,
+          'item_name': l.itemName,
+          'quantity': l.quantity,
+          'price_cents': l.priceCents,
+        });
+      }
+    });
+  }
+
+  Future<void> deleteInvoice(int invoiceId) async {
+    final db = await _db.database;
+    await db.transaction((txn) async {
+      await txn.delete(
+        DbTables.invoiceItems,
+        where: 'invoice_id = ?',
+        whereArgs: [invoiceId],
+      );
+      await txn.delete(
+        DbTables.invoices,
+        where: 'id = ?',
+        whereArgs: [invoiceId],
+      );
     });
   }
 
@@ -201,4 +247,3 @@ class NewInvoiceLine {
   final int quantity;
   final int priceCents;
 }
-

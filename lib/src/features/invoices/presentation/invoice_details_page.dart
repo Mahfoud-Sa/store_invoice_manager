@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
+import 'package:store_invoice_manager/src/features/invoices/presentation/invoice_editor_page.dart';
 
 import '../../../core/localization/app_localizations.dart';
 import '../data/invoices_repository.dart';
@@ -17,7 +18,11 @@ class InvoiceDetailsPage extends ConsumerWidget {
   String _formatMoney(BuildContext context, int cents) {
     final locale = Localizations.localeOf(context).toLanguageTag();
     final amount = cents / 100.0;
-    return NumberFormat.simpleCurrency(locale: locale).format(amount);
+    return NumberFormat.currency(
+      locale: locale,
+      symbol: 'ر.ي',
+      decimalDigits: 0,
+    ).format(amount);
   }
 
   @override
@@ -30,6 +35,53 @@ class InvoiceDetailsPage extends ConsumerWidget {
       appBar: AppBar(
         title: Text(context.l10n.invoices),
         actions: [
+          IconButton(
+            onPressed: () async {
+              // navigate to editor for editing
+              await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => InvoiceEditorPage(invoiceId: invoiceId),
+                ),
+              );
+              ref.invalidate(invoicesProvider);
+            },
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit',
+          ),
+          IconButton(
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: Text(context.l10n.delete),
+                  content: const Text('Delete this invoice?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                      child: Text(context.l10n.cancel),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                      child: Text(context.l10n.delete),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm != true) return;
+              try {
+                final repo = ref.read(invoicesRepositoryProvider);
+                await repo.deleteInvoice(invoiceId);
+                ref.invalidate(invoicesProvider);
+                if (Navigator.of(context).canPop()) Navigator.of(context).pop();
+              } catch (e) {
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
+            },
+            icon: const Icon(Icons.delete_outline),
+            tooltip: context.l10n.delete,
+          ),
           IconButton(
             onPressed: () async {
               final details = detailsAsync.valueOrNull;
@@ -58,7 +110,9 @@ class InvoiceDetailsPage extends ConsumerWidget {
       body: detailsAsync.when(
         data: (details) {
           final inv = details.invoice;
-          final createdAt = DateTime.fromMillisecondsSinceEpoch(inv.createdAtMs);
+          final createdAt = DateTime.fromMillisecondsSinceEpoch(
+            inv.createdAtMs,
+          );
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -73,19 +127,26 @@ class InvoiceDetailsPage extends ConsumerWidget {
                         child: Container(
                           width: 56,
                           height: 56,
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           child: inv.storeLogoPath == null
                               ? Icon(
                                   Icons.storefront,
-                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 )
                               : Image.file(
                                   File(inv.storeLogoPath!),
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Icon(
-                                    Icons.broken_image_outlined,
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
                                 ),
                         ),
                       ),
@@ -159,4 +220,3 @@ class InvoiceDetailsPage extends ConsumerWidget {
     );
   }
 }
-

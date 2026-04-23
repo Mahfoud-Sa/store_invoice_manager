@@ -146,6 +146,7 @@ class _ItemsPageState extends ConsumerState<ItemsPage> {
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.items)),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'items_fab',
         onPressed: () => _openUpsertDialog(),
         icon: const Icon(Icons.add),
         label: Text(context.l10n.addItem),
