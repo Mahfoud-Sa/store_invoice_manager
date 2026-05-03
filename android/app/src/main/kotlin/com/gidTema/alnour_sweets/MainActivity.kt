@@ -1,4 +1,4 @@
-package com.example.store_invoice_manager
+package com.gidTema.alnour_sweets
 
 import io.flutter.embedding.android.FlutterActivity
 
