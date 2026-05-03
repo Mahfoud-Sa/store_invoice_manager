@@ -16,7 +16,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.linkstech.store_invoice_manager" // 🔥 CHANGE THIS (recommended)
+    namespace = "com.gidTema.alnour_sweets"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -30,7 +30,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.linkstech.store_invoice_manager" // 🔥 MUST match namespace
+        applicationId = "com.gidTema.alnour_sweets" 
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
